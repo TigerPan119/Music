@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Perfect Pitch Test</title>
+  <!-- Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  >
+
+  <style>
+    /* Keyframe for subtle fade-in-up animation */
+    @keyframes fadeInUp {
+      0% {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Basic reset */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #f7f7f7;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: #333;
+    }
+
+    .container {
+      background-color: #ffffff;
+      border-radius: 15px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      width: 450px;
+      padding: 40px;
+      text-align: center;
+      animation: fadeInUp 0.6s ease both;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 10px;
+      color: #4CAF50;
+      font-weight: 700;
+    }
+
+    p {
+      font-size: 1rem;
+      color: #555;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 15px 30px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      background-color: #4CAF50;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      transition: background-color 0.3s ease, transform 0.2s ease;
+      font-weight: 500;
+      outline: none; /* Remove outline on button focus */
+    }
+
+    button:hover {
+      background-color: #45a049;
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Style the label and input as a group */
+    #question label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      color: #777;
+      text-align: left;
+    }
+
+    #userAnswer {
+      padding: 10px;
+      font-size: 1rem;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      width: 100%;
+      margin-bottom: 20px;
+      transition: border-color 0.3s ease;
+    }
+
+    #userAnswer:focus {
+      border-color: #4CAF50;
+      outline: none;
+    }
+
+    .result {
+      margin-top: 20px;
+      font-size: 1.3rem;
+      font-weight: 600;
+    }
+
+    .correct {
+      color: #4CAF50;
+    }
+
+    .incorrect {
+      color: #f44336;
+    }
+
+    .stats {
+      margin-top: 20px;
+      font-size: 1rem;
+      display: flex;
+      justify-content: space-around;
+      width: 100%;
+      border-top: 1px solid #eee;
+      padding-top: 20px;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat p {
+      margin: 0;
+      font-weight: 500;
+      color: #555;
+    }
+
+    .stat span {
+      display: block;
+      margin-top: 5px;
+      font-weight: 700;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Perfect Pitch Test</h1>
+    <p>Can you identify the note?</p>
+    <button onclick="playNote()">Play Note</button>
+
+    <div id="question" style="margin-top: 20px;">
+      <label for="userAnswer">Enter the note (e.g., C, D#, F, etc.):</label>
+      <input type="text" id="userAnswer" placeholder="Enter note" />
+      <button id="checkAnswerButton" onclick="checkAnswer()" disabled>Check Answer</button>
+    </div>
+
+    <div id="result" class="result"></div>
+
+    <div class="stats">
+      <div class="stat">
+        <p>Correct</p>
+        <span id="correctCount">0</span>
+      </div>
+      <div class="stat">
+        <p>Incorrect</p>
+        <span id="incorrectCount">0</span>
+      </div>
+      <div class="stat">
+        <p>Percentage</p>
+        <span id="percentage">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Array of musical notes and their frequencies from C3 to B5
+    const notes = {
+      "F#3": 185.00, "G3": 196.00, "G#3": 207.65, "A3": 220.00, "A#3": 233.08, "B3": 246.94,
+      "C4": 261.63, "C#4": 277.18, "D4": 293.66, "D#4": 311.13, "E4": 329.63, "F4": 349.23,
+      "F#4": 369.99, "G4": 392.00, "G#4": 415.30, "A4": 440.00, "A#4": 466.16, "B4": 493.88,
+      "C5": 523.25, "C#5": 554.37, "D5": 587.33, "D#5": 622.25
+    };
+
+    let selectedNote = "";
+    let correctAnswers = 0;
+    let incorrectAnswers = 0;
+
+    // Function to play a note
+    function playNote() {
+      const noteKeys = Object.keys(notes);
+      selectedNote = noteKeys[Math.floor(Math.random() * noteKeys.length)];
+
+      // Create an oscillator to play the selected note's frequency
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      oscillator.type = "sine";  // Tone type (sine wave)
+      oscillator.frequency.setValueAtTime(notes[selectedNote], audioCtx.currentTime);
+      oscillator.connect(audioCtx.destination);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 1); // Play note for 1 second
+
+      document.getElementById("result").textContent = ""; // Clear result message
+      document.getElementById("userAnswer").value = "";   // Clear input field
+      document.getElementById("checkAnswerButton").disabled = false; // Enable "Check Answer"
+    }
+
+    // Function to check if the user's guess is correct
+    function checkAnswer() {
+      const userAnswer = document.getElementById("userAnswer").value.trim().toUpperCase();
+      // Extract just the note name (without octave) for comparison
+      const noteName = selectedNote.replace(/\d/, ''); // Remove octave number
+
+      if (userAnswer === noteName) {
+        correctAnswers++;
+        document.getElementById("result").textContent = "Correct!";
+        document.getElementById("result").className = "result correct";
+      } else {
+        incorrectAnswers++;
+        document.getElementById("result").textContent =
+          "Incorrect! The correct note was: " + noteName;
+        document.getElementById("result").className = "result incorrect";
+      }
+
+      // Update the counters and percentage
+      updateStats();
+
+      // Disable the "Check Answer" button after checking
+      document.getElementById("checkAnswerButton").disabled = true;
+    }
+
+    // Function to update the stats (correct, incorrect, and percentage)
+    function updateStats() {
+      const totalAnswers = correctAnswers + incorrectAnswers;
+      const percentage =
+        totalAnswers === 0 ? 0 : Math.round((correctAnswers / totalAnswers) * 100);
+
+      document.getElementById("correctCount").textContent = correctAnswers;
+      document.getElementById("incorrectCount").textContent = incorrectAnswers;
+      document.getElementById("percentage").textContent = `${percentage}%`;
+    }
+  </script>
+</body>
+</html>
