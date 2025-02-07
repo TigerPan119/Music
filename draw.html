@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pix-it Pixel Art Studio</title>
+  <style>
+    /* Import Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    /* Global Styles */
+    body {
+      background: linear-gradient(135deg, #ffdfd4, #e0c3fc);
+      font-family: 'Press Start 2P', cursive;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    h1 {
+      font-family: 'Press Start 2P', cursive;
+      font-size: 2.2rem;
+      margin-top: 40px;
+      color: #ff69b4;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+      animation: fadeInDown 1s ease-out;
+    }
+
+    @keyframes fadeInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .tools {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    button, input[type="color"] {
+      padding: 10px 15px;
+      margin: 5px;
+      cursor: pointer;
+      font-size: 1rem;
+      border: none;
+      border-radius: 8px;
+      transition: transform 0.2s ease, background-color 0.2s ease;
+      background-color: #ff4e6cbd;
+      color: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    button:hover, input[type="color"]:hover {
+      transform: scale(1.05);
+      background-color: #ab1e38;
+    }
+
+    input[type="color"] {
+      padding: 0;
+      width: 40px;
+      height: 40px;
+      border: 2px solid #fff;
+      background-color: transparent;
+    }
+
+    #canvasContainer {
+        position: relative;
+        display: block; 
+        width: 500px;  
+        height: 500px; 
+        margin: 20px auto 0; 
+        border: 3px solid #fff;
+        border-radius: 12px;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        background-color: #fff;
+    }
+
+    /* Both canvases are layered exactly on top of each other */
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      border-radius: 12px;
+    }
+
+    /* The grid canvas is on top but won't block events */
+    #gridCanvas {
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* The drawing canvas is below */
+    #drawingCanvas {
+      z-index: 1;
+    }
+
+    /* New CSS for the active tool button */
+    button.active {
+      background-color: #ab1e38;
+      transform: scale(1.05);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+  </style>
+</head>
+<body>
+  <h1>Pix-it! Studio</h1>
+
+  <div class="tools">
+    <button id="draw">Draw</button>
+    <button id="erase">Erase</button>
+    <button id="toggle-grid">Toggle Grid</button>
+    <input type="color" id="color-picker" value="#000000" />
+    <button id="export">Export</button>
+    <button id="clear">Clear Canvas</button> <!-- New clear button -->
+  </div>
+
+  <div id="canvasContainer">
+    <!-- Drawing canvas: where the user draws/erases -->
+    <canvas id="drawingCanvas" width="500" height="500"></canvas>
+    <!-- Grid canvas: displays the grid overlay -->
+    <canvas id="gridCanvas" width="500" height="500"></canvas>
+  </div>
+
+  <script>
+    const drawingCanvas = document.getElementById("drawingCanvas");
+    const drawingCtx = drawingCanvas.getContext("2d");
+
+    const gridCanvas = document.getElementById("gridCanvas");
+    const gridCtx = gridCanvas.getContext("2d");
+
+    const drawButton = document.getElementById("draw");
+    const eraseButton = document.getElementById("erase");
+    const toggleGridButton = document.getElementById("toggle-grid");
+    const colorPicker = document.getElementById("color-picker");
+    const exportButton = document.getElementById("export");
+    const clearButton = document.getElementById("clear"); // Clear button reference
+
+    const pixelSize = 20; // Each "pixel" is 20x20
+    let drawing = false;
+    let isErasing = false;
+    let currentColor = "#000000";
+    let showGrid = true;
+
+    // Draw the grid on the grid canvas.
+    function drawGrid() {
+      // Clear any previous grid drawing.
+      gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+      if (!showGrid) return;
+
+      gridCtx.beginPath();
+      // Vertical lines.
+      for (let x = 0; x <= gridCanvas.width; x += pixelSize) {
+        gridCtx.moveTo(x, 0);
+        gridCtx.lineTo(x, gridCanvas.height);
+      }
+      // Horizontal lines.
+      for (let y = 0; y <= gridCanvas.height; y += pixelSize) {
+        gridCtx.moveTo(0, y);
+        gridCtx.lineTo(gridCanvas.width, y);
+      }
+      gridCtx.strokeStyle = "#ccc";
+      gridCtx.stroke();
+    }
+
+    drawGrid();
+
+    // Get pixel-aligned coordinates relative to the drawing canvas.
+    function getPixelCoordinates(e) {
+      const rect = drawingCanvas.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) / pixelSize) * pixelSize;
+      const y = Math.floor((e.clientY - rect.top) / pixelSize) * pixelSize;
+      return { x, y };
+    }
+
+    // Begin drawing or erasing.
+    function startDrawing(e) {
+      drawing = true;
+      drawOrErase(e);
+    }
+
+    // Stop drawing or erasing.
+    function stopDrawing() {
+      drawing = false;
+    }
+
+    // Depending on the mode, draw or erase a pixel.
+    function drawOrErase(e) {
+      if (!drawing) return;
+      const { x, y } = getPixelCoordinates(e);
+      if (isErasing) {
+        drawingCtx.clearRect(x, y, pixelSize, pixelSize);
+      } else {
+        drawingCtx.fillStyle = currentColor;
+        drawingCtx.fillRect(x, y, pixelSize, pixelSize);
+      }
+    }
+
+    // Attach mouse event listeners to the drawing canvas.
+    drawingCanvas.addEventListener("mousedown", startDrawing);
+    drawingCanvas.addEventListener("mousemove", drawOrErase);
+    drawingCanvas.addEventListener("mouseup", stopDrawing);
+    drawingCanvas.addEventListener("mouseleave", stopDrawing);
+
+    // Switch to drawing mode.
+    drawButton.addEventListener("click", () => {
+      isErasing = false;
+      drawButton.classList.add("active"); // Highlight the draw button
+      eraseButton.classList.remove("active"); // Remove highlight from erase button
+    });
+
+    // Switch to erasing mode.
+    eraseButton.addEventListener("click", () => {
+      isErasing = true;
+      eraseButton.classList.add("active"); // Highlight the erase button
+      drawButton.classList.remove("active"); // Remove highlight from draw button
+    });
+
+    // Update current color.
+    colorPicker.addEventListener("input", (e) => {
+      currentColor = e.target.value;
+    });
+
+    // Toggle grid visibility.
+    toggleGridButton.addEventListener("click", () => {
+      showGrid = !showGrid;
+      drawGrid();
+    });
+
+    // Export the drawing canvas as an image (grid is not exported).
+    exportButton.addEventListener("click", () => {
+      const imageUrl = drawingCanvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = imageUrl;
+      link.download = "pixel-art.png";
+      link.click();
+    });
+
+    // Clear the drawing canvas.
+    clearButton.addEventListener("click", () => {
+        const isConfirmed = window.confirm("Are you sure you want to clear the canvas?");
+        if (isConfirmed) {
+            drawingCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+        }
+});
+  </script>
+</body>
+</html>
